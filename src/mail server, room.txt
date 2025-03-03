@@ -1,0 +1,4 @@
+mail server, room
+host, purpose
+start, end
+attendees - full length, text area, multi line
