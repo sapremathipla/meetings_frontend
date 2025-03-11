@@ -25,7 +25,7 @@ console.log(formData);
   useEffect(() => {
     const fetchMailServers = async () => {
       try {
-        const response = await axios.get("http://localhost:5000/mailservers");
+        const response = await axios.get("http://localhost:5000/mailservers/");
         setMailServers(response.data);
       } catch (error) {
         console.error("Error fetching mail servers:", error);
