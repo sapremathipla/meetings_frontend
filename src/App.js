@@ -5,6 +5,7 @@ import "./App.css";
 const CreateMeetingForm = () => {
   const [formData, setFormData] = useState({
     mailServer: "",
+    selectedMailServer: "",
     room: "",
     host: "",
     purpose: "",
@@ -12,6 +13,7 @@ const CreateMeetingForm = () => {
     endDateTime: "",
     attendees: "",
     tenantId: "",
+    mailServerId: "",
   });
 console.log(formData);
   const [mailServers, setMailServers] = useState([]);
@@ -25,10 +27,24 @@ console.log(formData);
   useEffect(() => {
     const fetchMailServers = async () => {
       try {
-        const response = await axios.get("http://localhost:5000/mailservers/");
-        setMailServers(response.data);
+        const response = await axios.get("http://localhost:5000/v1/mailservers/");
+        console.log('Full Response:', response);
+        console.log('Response Data:', response.data);
+        console.log('Response Data Type:', typeof response.data);
+        
+        // If the data is nested inside another object, access it correctly
+        const mailServerData = response.data.data || response.data; // Try to access nested data if it exists
+        
+        if (Array.isArray(mailServerData)) {
+          console.log('Mail Servers Found:', mailServerData);
+          setMailServers(mailServerData);
+        } else {
+          console.error("Data structure received:", mailServerData);
+          setMailServers([]);
+        }
       } catch (error) {
         console.error("Error fetching mail servers:", error);
+        setMailServers([]);
       }
     };
 
@@ -63,43 +79,97 @@ console.log(formData);
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // const updatedData = {
-    //   id: formData.id,
-    //   startTime: new Date(formData.startDateTime).getTime(),
-    //   endTime: new Date(formData.endDateTime).getTime(),
-    //   purpose: formData.purpose,
-    //   room: formData.room, 
-    //   attendees: formData.attendees.split(",").map((email) => email.trim()),
-    // };
+    // Validate required fields
+    if (!formData.mailServerId || !formData.tenantId) {
+      alert('Please select a mail server first');
+      return;
+    }
 
-    // try {
-    //   const response = await fetch("http://localhost:5000/update-meeting", {
-    //     method: editing ? "PUT" : "POST",
-    //     headers: {
-    //       "Content-Type": "application/json",
-    //     },
-    //     body: JSON.stringify(updatedData),
-    //   });
+    if (!formData.room.trim()) {
+      alert('Please enter a room name');
+      return;
+    }
 
-    //   if (response.ok) {
-    //     setPopupVisible(true);
-    //     setTimeout(() => {
-    //       setPopupVisible(false);
-    //       window.location.href = "/create-meeting";
-    //     }, 1000);
-    //   } else {
-    //     const error = await response.json();
-    //     alert(`Failed to ${editing ? "update" : "create"} meeting: ${error.message}`);
-    //   }
-    // } catch (error) {
-    //   console.error(`Error ${editing ? "updating" : "creating"} meeting:`, error);
-    //   alert("An error occurred. Please try again.");
-    // }
+    if (!formData.host.trim()) {
+      alert('Please enter a host email');
+      return;
+    }
+
+    if (!formData.purpose.trim()) {
+      alert('Please enter a purpose');
+      return;
+    }
+
+    if (!formData.startDateTime || !formData.endDateTime) {
+      alert('Please select both start and end times');
+      return;
+    }
+
+    if (!formData.attendees.trim()) {
+      alert('Please enter at least one attendee');
+      return;
+    }
 
     try {
+      // Format attendees as an array and validate email format
+      const attendeesList = formData.attendees
+        .split(',')
+        .map(email => email.trim())
+        .filter(email => {
+          const isValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+          if (!isValid) {
+            console.warn(`Invalid email format: ${email}`);
+          }
+          return isValid && email.length > 0;
+        });
+
+      if (attendeesList.length === 0) {
+        alert('Please enter at least one valid email address for attendees');
+        return;
+      }
+
+      // Format dates to match server expectations
+      const startDate = new Date(formData.startDateTime);
+      const endDate = new Date(formData.endDateTime);
+
+      // Validate dates
+      if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+        alert('Invalid date format');
+        return;
+      }
+
+      if (startDate >= endDate) {
+        alert('End time must be after start time');
+        return;
+      }
+
+      // Create the meeting data object with the exact format the server expects
+      const meetingData = {
+        tenantId: String(formData.tenantId),
+        room: formData.room.trim(),
+        host: formData.host.trim(),
+        purpose: formData.purpose.trim(),
+        startDateTime: Math.floor(startDate.getTime() / 1000),
+        endDateTime: Math.floor(endDate.getTime() / 1000),
+        attendees: attendeesList
+      };
+
+      // Debug logs
+      console.log('Form Data:', formData);
+      console.log('Selected Mail Server:', formData.selectedMailServer);
+      console.log('Sending Meeting Data:', JSON.stringify(meetingData, null, 2));
+
       const response = await axios.post(
-        "http://localhost:5000/create-meeting", formData);
-      console.log("Meeting created successfully:", response.data);
+        "http://localhost:5000/v1/mailservers/create-meeting", 
+        meetingData,
+        {
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      console.log("Server Response:", response.data);
       setPopupVisible(true);
       setTimeout(() => {
         setPopupVisible(false);
@@ -107,8 +177,35 @@ console.log(formData);
         window.location.reload();
       }, 3000);
     } catch (error) {
-      console.error("Error creating meeting:", error);
-      alert("Failed to create meeting.");
+      // Enhanced error logging
+      console.error("Error Details:", {
+        message: error.message,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        responseData: error.response?.data,
+        requestData: JSON.parse(error.config?.data || '{}'),
+        requestHeaders: error.config?.headers
+      });
+
+      // Log the full error response
+      if (error.response?.data) {
+        console.error("Server Error Response:", JSON.stringify(error.response.data, null, 2));
+      }
+
+      // Show a more informative error message
+      let errorMessage = 'Failed to create meeting:\n';
+      if (error.response?.data?.message) {
+        errorMessage += error.response.data.message;
+      } else if (error.response?.data?.error) {
+        errorMessage += error.response.data.error;
+      } else if (error.response?.data?.validation_errors) {
+        errorMessage += Object.entries(error.response.data.validation_errors)
+          .map(([field, message]) => `${field}: ${message}`)
+          .join('\n');
+      } else {
+        errorMessage += error.message;
+      }
+      alert(errorMessage);
     }
   };
 
@@ -120,19 +217,33 @@ console.log(formData);
 
 
   const handleMailServer = (e) => {
-    const selectedMailServer = JSON.parse(e.target.value);
-    console.log(selectedMailServer);
-    console.log(formData.tenantId);
-    if (selectedMailServer) {
-      console.log(selectedMailServer);
-      setFormData({
-        ...formData,
-        mailServerId: selectedMailServer.id,
-        tenantId: JSON.parse(selectedMailServer.credentials).tenantId,
+    try {
+      const selectedMailServer = JSON.parse(e.target.value);
+      console.log('Selected Mail Server:', selectedMailServer);
+      
+      if (selectedMailServer) {
+        const credentials = JSON.parse(selectedMailServer.credentials);
+        console.log('Parsed credentials:', credentials);
+        
+        // Update form data with all necessary fields
+        setFormData(prev => ({
+          ...prev,
+          mailServerId: String(selectedMailServer.id), // Ensure it's a string
+          mailServer: selectedMailServer.domain,
+          tenantId: String(credentials.tenantId), // Ensure it's a string
+          selectedMailServer: e.target.value
+        }));
+
+        // Debug log
+        console.log('Updated form data after mail server selection:', {
+          mailServerId: String(selectedMailServer.id),
+          tenantId: String(credentials.tenantId)
+        });
       }
-      );
+    } catch (error) {
+      console.error('Error processing mail server selection:', error);
+      alert('Error selecting mail server. Please try again.');
     }
-    console.log(formData);
   };
   // const convertEpochToHumanTime = (epochTime) => {
   //   if (!epochTime || isNaN(epochTime)) {
@@ -193,7 +304,7 @@ console.log(formData);
 
   const fetchMeetingDetails = async (id, email ,tenantId) => {
     try {
-      const response = await fetch(`http://localhost:5000/get-meeting-details?id=${id}&host=${email}&tenantId=${tenantId}`);
+      const response = await fetch(`http://localhost:5000/v1/mailservers/meeting-details?id=${id}&host=${email}&tenantId=${tenantId}`);
       const data = await response.json();
 
       if (response.ok) {
@@ -229,11 +340,21 @@ console.log(formData);
               required
             >
               <option value="">Select the Mail-Server</option>
-              {mailServers.map((server) => (
-                <option key={server.id} value={JSON.stringify(server)}>
-                  {server.domain}
+              {console.log('Current mailServers state:', mailServers)}
+              {Array.isArray(mailServers) && mailServers.length > 0 ? (
+                mailServers.map((server) => {
+                  console.log('Processing server:', server);
+                  return (
+                    <option key={server.id} value={JSON.stringify(server)}>
+                      {server.domain || 'Unnamed Server'}
+                    </option>
+                  );
+                })
+              ) : (
+                <option value="" disabled>
+                  No mail servers available ({Array.isArray(mailServers) ? mailServers.length : 'not an array'})
                 </option>
-              ))}
+              )}
             </select>
           </div>
 
