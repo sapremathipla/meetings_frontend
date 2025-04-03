@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
-import "./App.css";
+import "./App.css"
+
 // import { useNavigate } from "react-router-dom";
 const CreateMeetingForm = () => {
   const [formData, setFormData] = useState({
@@ -27,7 +28,10 @@ console.log(formData);
   useEffect(() => {
     const fetchMailServers = async () => {
       try {
-        const response = await axios.get("http://localhost:5000/v1/mailservers/");
+        const apiUrl = `${process.env.REACT_APP_BASE_URL}/mailservers/`;
+        console.log("Fetching mail servers from:", apiUrl);
+        const response = await axios.get(apiUrl);
+        console.log("THE URL :::: ",`${process.env.REACT_APP_BASE_URL}`);
         console.log('Full Response:', response);
         console.log('Response Data:', response.data);
         console.log('Response Data Type:', typeof response.data);
@@ -145,13 +149,14 @@ console.log(formData);
 
       // Create the meeting data object with the exact format the server expects
       const meetingData = {
-        tenantId: String(formData.tenantId),
-        room: formData.room.trim(),
-        host: formData.host.trim(),
+        mailserver_id: String(formData.mailServerId),
+        tenant_id: String(formData.tenantId),
+        room_name: formData.room.trim(),
+        e_mail: formData.host.trim(),
         purpose: formData.purpose.trim(),
-        startDateTime: Math.floor(startDate.getTime() / 1000),
-        endDateTime: Math.floor(endDate.getTime() / 1000),
-        attendees: attendeesList
+        start_time: Math.floor(startDate.getTime() / 1000),
+        end_time: Math.floor(endDate.getTime() / 1000),
+        visitor_emails: attendeesList
       };
 
       // Debug logs
@@ -160,7 +165,7 @@ console.log(formData);
       console.log('Sending Meeting Data:', JSON.stringify(meetingData, null, 2));
 
       const response = await axios.post(
-        "http://localhost:5000/v1/mailservers/create-meeting", 
+        `${process.env.REACT_APP_BASE_URL}/mailservers/create-meeting`,
         meetingData,
         {
           headers: {
@@ -304,7 +309,7 @@ console.log(formData);
 
   const fetchMeetingDetails = async (id, email ,tenantId) => {
     try {
-      const response = await fetch(`http://localhost:5000/v1/mailservers/meeting-details?id=${id}&host=${email}&tenantId=${tenantId}`);
+      const response = await fetch(`${process.env.REACT_APP_BASE_URL}/mailservers/meeting-details?id=${id}&host=${email}&tenantId=${tenantId}`);
       const data = await response.json();
 
       if (response.ok) {
