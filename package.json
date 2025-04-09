@@ -1,5 +1,5 @@
 {
-  "homepage": ".",
+  "homepage": "https://sapremathipla.github.io/meetings_frontend",
   "name": "meetings_frontend",
   "version": "0.1.0",
   "private": true,
@@ -17,7 +17,7 @@
     "test": "react-scripts test",
     "eject": "react-scripts eject",
     "predeploy": "npm run build",
-    "deploy": "vercel --preview"
+    "deploy": "gh-pages -d build"
   },
   "eslintConfig": {
     "extends": [
@@ -38,7 +38,6 @@
     ]
   },
   "devDependencies": {
-    "gh-pages": "^6.3.0",
-    "vercel": "^41.5.0"
+    "gh-pages": "^6.3.0"
   }
 }
