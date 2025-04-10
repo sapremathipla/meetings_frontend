@@ -1,6 +1,7 @@
   import React, { useState, useEffect } from "react";
   import axios from "axios";
   import "./App.css"
+import moment from "moment-timezone";
 
   // import { useNavigate } from "react-router-dom";
   const CreateMeetingForm = () => {
@@ -18,12 +19,51 @@
     });
   console.log(formData);
     const [mailServers, setMailServers] = useState([]);
-    // const [meetings, setMeetings] = useState([]);
     const [popupVisible, setPopupVisible] = useState(false);
     const [editing, setEditing] = useState(false);
-    // const navigate = useNavigate();
-
-
+    
+   
+  
+    // Convert UTC to IST for display
+    const utcToIST = (utcDateTime) => {
+      if (!utcDateTime) return "";
+      
+      let date;
+      
+      // Handle Unix timestamp in seconds
+      if (typeof utcDateTime === 'number') {
+        date = new Date(utcDateTime * 1000); // Convert to milliseconds
+      } 
+      // Handle ISO string
+      else if (typeof utcDateTime === 'string') {
+        // Check if it's already in ISO format
+        if (utcDateTime.includes('T') || utcDateTime.includes('Z')) {
+          date = new Date(utcDateTime);
+        } else {
+          // Assume it's a local datetime string
+          date = new Date(utcDateTime + 'Z');
+        }
+      }
+      // Handle Date object
+      else if (utcDateTime instanceof Date) {
+        date = utcDateTime;
+      } else {
+        console.error('Unsupported date format:', utcDateTime);
+        return "";
+      }
+    
+      if (isNaN(date.getTime())) {
+        console.error('Invalid date:', utcDateTime);
+        return "";
+      }
+    
+      // Convert to IST (UTC+5:30)
+      const istTime = new Date(date.getTime() + (5.5 * 60 * 60 * 1000));
+      
+      // Format for datetime-local input (YYYY-MM-DDTHH:MM)
+      const pad = num => num.toString().padStart(2, '0');
+      return `${istTime.getFullYear()}-${pad(istTime.getMonth() + 1)}-${pad(istTime.getDate())}T${pad(istTime.getHours())}:${pad(istTime.getMinutes())}`;
+    };
 
     useEffect(() => {
       const fetchMailServers = async () => {
@@ -131,18 +171,18 @@
           alert('Please enter at least one valid email address for attendees');
           return;
         }
-
+debugger
         // Format dates to match server expectations
-        const startDate = new Date(formData.startDateTime);
-        const endDate = new Date(formData.endDateTime);
-
+        const startDate  = moment(formData.startDateTime).valueOf();
+        const endDate  = moment(formData.endDateTime).valueOf();
+debugger
         // Validate dates
-        if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
-          alert('Invalid date format');
-          return;
-        }
+        // if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+        //   alert('Invalid date format');
+        //   return;
+        // }
 
-        if (startDate >= endDate) {
+        if (startDate  >= endDate ) {
           alert('End time must be after start time');
           return;
         }
@@ -154,8 +194,8 @@
           room: formData.room.trim(),
           host: formData.host.trim(),
           purpose: formData.purpose.trim(),
-          startDateTime: Math.floor(startDate.getTime()),
-          endDateTime: Math.floor(endDate.getTime()),
+          startDateTime: Math.floor(new Date(startDate).getTime()), // Convert to Unix timestamp (seconds)
+          endDateTime: Math.floor(new Date(endDate).getTime()),      // Convert to Unix timestamp (seconds)
           attendees: attendeesList
         };
 
@@ -292,21 +332,7 @@
 
     // };
     useEffect(() => {
-      const urlParams = new URLSearchParams(window.location.search);
-      const id = urlParams.get("id");
-      const email = urlParams.get("email");
-      const tenantId = urlParams.get("tenantId");
-
-      if (id && email && tenantId) {
-        fetchMeetingDetails(id, email,tenantId);
-      }
-    }, []);
-    const formatDateTime = (dateString) => {
-      if (!dateString) return ""; 
-      const date = new Date(dateString);
-      return date.toISOString().slice(0, 16);
-    };
-
+      
     const fetchMeetingDetails = async (id, email ,tenantId) => {
       try {
         const response = await fetch(`${process.env.REACT_APP_BASE_URL}/mailservers/meeting-details?id=${id}&host=${email}&tenantId=${tenantId}`);
@@ -316,8 +342,8 @@
           setFormData({
             purpose: data.purpose || "",
             host:data.host || "",
-            startDateTime: data.startDateTime || "",
-            endDateTime: data.endDateTime || "",
+            startDateTime: utcToIST(data.startDateTime),
+            endDateTime: utcToIST(data.endDateTime),
             room: data.room || "",
             attendees: data.attendees || "",
           });
@@ -327,7 +353,24 @@
       } catch (error) {
         console.error("Error fetching meeting details:", error);
       }
+      
     };
+      const urlParams = new URLSearchParams(window.location.search);
+      const id = urlParams.get("id");
+      const email = urlParams.get("email");
+      const tenantId = urlParams.get("tenantId");
+
+      if (id && email && tenantId) {
+        fetchMeetingDetails(id, email,tenantId);
+      }
+    }, []);
+  
+    // const formatDateTime = (dateString) => {
+    //   if (!dateString) return ""; 
+    //   const date = new Date(dateString);
+    //   return date.toISOString().slice(0, 16);
+    // };
+
 
     return (
       <div className="container">
@@ -413,7 +456,7 @@
                 name="startDateTime"
                 className="form-control"
                 onChange={handleChange}
-                value={formatDateTime(formData.startDateTime)}
+                value={formData.startDateTime}
                 required
               />
             </div>
@@ -426,7 +469,7 @@
                 name="endDateTime"
                 className="form-control"
                 onChange={handleChange}
-                value={formatDateTime(formData.endDateTime)}
+                value={formData.endDateTime}
                 required
               />
             </div>
